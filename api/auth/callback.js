@@ -42,15 +42,14 @@ export default async function handler(req, res) {
       });
     }
 
-    // Validación obligatoria
-    if (!data.refresh_token || !data.user_id) {
-      return res.status(500).send("Missing refresh_token or user_id");
+    // Solo validamos refresh_token
+    if (!data.refresh_token) {
+      return res.status(500).send("Missing refresh_token");
     }
 
-    // Construimos key por seller
-    const key = `ml:refresh_token:${data.user_id}`;
+    // Modo 1 seller
+    const key = "ml:refresh_token";
 
-    // Guardamos en Redis
     await redis.set(key, data.refresh_token);
 
     return res.status(200).send("OK autorizado (refresh_token guardado)");
