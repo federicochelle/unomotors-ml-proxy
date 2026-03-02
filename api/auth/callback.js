@@ -1,6 +1,14 @@
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
+
 export default async function handler(req, res) {
   try {
     const code = req.query.code;
+
     if (!code) {
       return res.status(400).send("Missing code");
     }
@@ -25,7 +33,6 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // Si falló ML, devolvemos solo un mensaje (sin tokens)
     if (!response.ok) {
       return res.status(response.status).json({
         ok: false,
@@ -35,8 +42,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // ✅ Éxito: NO devolvemos token
-    return res.status(200).send("OK autorizado ✅ (token NO expuesto)");
+    // Validación obligatoria
+    if (!data.refresh_token || !data.user_id) {
+      return res.status(500).send("Missing refresh_token or user_id");
+    }
+
+    // Construimos key por seller
+    const key = `ml:refresh_token:${data.user_id}`;
+
+    // Guardamos en Redis
+    await redis.set(key, data.refresh_token);
+
+    return res.status(200).send("OK autorizado (refresh_token guardado)");
   } catch (err) {
     return res.status(500).send("Internal error");
   }
