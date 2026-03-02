@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   try {
     const code = req.query.code;
     if (!code) {
-      return res.status(400).json({ ok: false, error: "Missing code" });
+      return res.status(400).send("Missing code");
     }
 
     const clientId = process.env.MI_CLIENT_ID;
@@ -19,19 +19,25 @@ export default async function handler(req, res) {
 
     const response = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     });
 
     const data = await response.json();
 
-    return res.status(response.status).json({
-      ok: response.ok,
-      data,
-    });
+    // Si falló ML, devolvemos solo un mensaje (sin tokens)
+    if (!response.ok) {
+      return res.status(response.status).json({
+        ok: false,
+        error: data?.message || "ML token exchange failed",
+        status: data?.status || response.status,
+        code: data?.error || data?.code || "unknown_error",
+      });
+    }
+
+    // ✅ Éxito: NO devolvemos token
+    return res.status(200).send("OK autorizado ✅ (token NO expuesto)");
   } catch (err) {
-    return res.status(500).json({ ok: false, error: String(err) });
+    return res.status(500).send("Internal error");
   }
 }
