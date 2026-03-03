@@ -7,7 +7,7 @@ export default function handler(req, res) {
   }
 
   const authUrl =
-    `https://auth.mercadolibre.com/authorization` +
+    `https://auth.mercadolibre.com.uy/authorization` +
     `?response_type=code` +
     `&client_id=${encodeURIComponent(clientId)}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}`;
