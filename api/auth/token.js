@@ -5,29 +5,50 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN,
 });
 
+function checkAdmin(req) {
+  const key = req.headers["x-admin-key"] || req.query.admin_key;
+  return key && key === process.env.ADMIN_KEY;
+}
+
 export default async function handler(req, res) {
   try {
+    // 🔐 Protección admin
+    if (!checkAdmin(req)) {
+      return res.status(401).json({
+        ok: false,
+        error: "Unauthorized",
+      });
+    }
+
     if (req.method !== "GET") {
-      return res.status(405).json({ ok: false, error: "Method not allowed" });
+      return res.status(405).json({
+        ok: false,
+        error: "Method not allowed",
+      });
     }
 
     const clientId = process.env.MI_CLIENT_ID;
     const clientSecret = process.env.MI_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      return res.status(500).json({ ok: false, error: "Missing ML env vars" });
+      return res.status(500).json({
+        ok: false,
+        error: "Missing ML environment variables",
+      });
     }
 
-    // 1 seller => key fija
+    // 1 seller → key fija
     const key = "ml:refresh_token";
     const refreshToken = await redis.get(key);
 
     if (!refreshToken) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Missing refresh_token in storage" });
+      return res.status(400).json({
+        ok: false,
+        error: "Missing refresh_token in storage",
+      });
     }
 
+    // 🔄 Generar nuevo access_token usando refresh_token
     const body = new URLSearchParams({
       grant_type: "refresh_token",
       client_id: clientId,
@@ -37,7 +58,9 @@ export default async function handler(req, res) {
 
     const response = await fetch("https://api.mercadolibre.com/oauth/token", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body,
     });
 
@@ -52,12 +75,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // ML a veces rota refresh_token: si viene uno nuevo, lo guardamos
+    // 🔁 Si ML rota el refresh_token, lo guardamos
     if (data.refresh_token && data.refresh_token !== refreshToken) {
       await redis.set(key, data.refresh_token);
     }
 
-    // Importante: NO devolvemos access_token por seguridad
+    // 🚫 NO devolvemos access_token por seguridad
     return res.status(200).json({
       ok: true,
       message: "Access token generated",
@@ -65,6 +88,9 @@ export default async function handler(req, res) {
       scope: data.scope,
     });
   } catch (err) {
-    return res.status(500).json({ ok: false, error: "Internal error" });
+    return res.status(500).json({
+      ok: false,
+      error: err.message || "Internal error",
+    });
   }
 }
